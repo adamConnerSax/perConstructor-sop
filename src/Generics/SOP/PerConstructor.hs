@@ -14,7 +14,7 @@ module Generics.SOP.PerConstructor
     MapFieldsAndSequence
   , mapFieldsAndSequence
   , mapFieldsAndSequence'
-  , NatAt
+  , NatAt(..)
   , TransformEach
   , constructorNameList
   , functorToPerConstructorNP
@@ -26,14 +26,17 @@ module Generics.SOP.PerConstructor
   , doPerConstructor
   , doPerConstructorWithNames
   -- re-exports from generics-sop
-  , (:.:)
-  , NP
-  , K(..)
+  , Generic
+  , HasDatatypeInfo
+  , ConstructorName
+  , (:.:)(..)
+  , unComp
   , I(..)
-
+  , Code
   ) where
 
 import           Generics.SOP hiding (Compose)
+
 
 expand::forall (f :: [k] -> *) xs.(SListI xs)=>NS f xs -> NP (Maybe :.: f) xs
 expand ns = go sList (Just ns) where

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -66,13 +67,17 @@ npUnCompose np = go np where
   go (fgx :* np') = unComp fgx :* go np'
 
 {-
-type family RemoveFunctor (f :: * -> *) (xs :: [*]) where
-  RemoveFunctor f '[] = '[]
-  RemoveFunctor f (f x ': xs) = x ': RemoveFunctor f xs
+- Is this possible?  Shifting functors into and out of typelists?
+instance SListI (AddFunctor f '[]) where
+  sList = SNil
 
-npRecompose::SListI gxs=>NP f gxs -> NP (f :.: g) (RemoveFunctor g gxs)
+instance SListI (AddFunctor f xs) => SListI (AddFunctor f (x ': xs)) where
+  sList = SCons
+
+
+npRecompose::SListI xs=>NP f (AddFunctor g xs) -> NP (f :.: g) xs
 npRecompose np = go np where
-  go::NP f gys -> NP (f :.: g) (RemoveFunctor g gys)
+  go::NP f (AddFunctor g ys) -> NP (f :.: g) ys
   go Nil = Nil
   go (fgx :* np') = Comp fgx :* go np'
 -}

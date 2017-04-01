@@ -72,4 +72,10 @@ nsToDSum ns =
       nsFToNSDSum ns = ap_NS (tagsToFs makeTypeListTagNP) ns
       tagsToFs::SListI xs=>NP (TypeListTag xs) xs -> NP (f -.-> K (DS.DSum (TypeListTag xs) f)) xs
       tagsToFs = hmap (\tag -> (Fn $ \val -> K (tag :=> val)))
-  hcollapse $ nsFToNSDSum ns
+  in hcollapse $ nsFToNSDSum ns
+
+dSumToNS::SListI xs=>DS.DSum (TypeListTag xs) f -> NS f xs
+dSumToNS (tag :=> fa) = go tag fa where
+  go::TypeListTag ys y->f y->NS f ys
+  go Here fy = Z fy
+  go (There tag') fy = S (go tag' fy)

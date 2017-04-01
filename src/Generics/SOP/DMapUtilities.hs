@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 module Generics.SOP.DMapUtilities where
 
@@ -17,6 +18,8 @@ import           Data.Dependent.Sum (DSum ((:=>)))
 import qualified Data.Dependent.Sum as DS
 import           Data.GADT.Compare  ((:~:) (..), GCompare (..), GEq (..),
                                      GOrdering (..))
+
+--import           Data.Type.List (Map)
 
 
 -- some preliminaries for type-level tags for the constructors of sum types
@@ -52,6 +55,27 @@ npToDMap::NP f xs -> DM.DMap (TypeListTag xs) f
 npToDMap Nil = DM.empty
 npToDMap (fx :* np') = DM.insert Here fx $ DM.mapKeysMonotonic There $ npToDMap np'
 
+type family AddFunctor (f :: * -> *) (xs :: [*]) where
+  AddFunctor f '[] = '[]
+  AddFunctor f (x ': xs) = f x ': AddFunctor f xs
+
+npUnCompose::SListI xs=>NP (f :.: g) xs -> NP f (AddFunctor g xs)
+npUnCompose np = go np where
+  go::NP (f :.: g) ys -> NP f (AddFunctor g ys)
+  go Nil = Nil
+  go (fgx :* np') = unComp fgx :* go np'
+
+{-
+type family RemoveFunctor (f :: * -> *) (xs :: [*]) where
+  RemoveFunctor f '[] = '[]
+  RemoveFunctor f (f x ': xs) = x ': RemoveFunctor f xs
+
+npRecompose::SListI gxs=>NP f gxs -> NP (f :.: g) (RemoveFunctor g gxs)
+npRecompose np = go np where
+  go::NP f gys -> NP (f :.: g) (RemoveFunctor g gys)
+  go Nil = Nil
+  go (fgx :* np') = Comp fgx :* go np'
+-}
 
 makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
 makeTypeListTagNP = go sList where

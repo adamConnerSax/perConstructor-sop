@@ -29,7 +29,7 @@ module Generics.SOP.PerConstructor
   , Generic
   , HasDatatypeInfo
   , ConstructorName
-  , (:.:)(..)
+  , (:.:)(Comp)
   , unComp
   , I(..)
   , Code

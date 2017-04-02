@@ -1,14 +1,14 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
+--{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
 module Generics.SOP.PerConstructor
   (
     MapFieldsAndSequence
@@ -16,15 +16,25 @@ module Generics.SOP.PerConstructor
   , mapFieldsAndSequence'
   , NatAt(..)
   , TransformEach
-  , constructorNameList
   , functorToPerConstructorNP
   , functorToPerConstructorList
+  , functorToPerConstructorList'
   , functorDoPerConstructor
+  , functorDoPerConstructor'
   , functorDoPerConstructorWithNames
+  , functorDoPerConstructorWithNames'  
   , toPerConstructorNP
   , toPerConstructorList
+  , toPerConstructorList'
   , doPerConstructor
+  , doPerConstructor'
   , doPerConstructorWithNames
+  , doPerConstructorWithNames'
+  -- metadata utils
+  , constructorNameList
+  , getFieldNames
+  , maybeFieldNamePOP
+  , constructorData
   -- re-exports from generics-sop
   , Generic
   , HasDatatypeInfo
@@ -36,6 +46,8 @@ module Generics.SOP.PerConstructor
   ) where
 
 import           Generics.SOP hiding (Compose)
+import           Control.Arrow (first, (&&&))
+import           Data.Proxy (Proxy(Proxy))
 
 
 expand::forall (f :: [k] -> *) xs.(SListI xs)=>NS f xs -> NP (Maybe :.: f) xs
@@ -120,17 +132,23 @@ This is the heart of it.  Take a functorial value (Functor g=>g a) and a (possib
 -}
 type TransformEach g h xss = NP ((g :.: Maybe) :.: NP I) xss -> NP (h :.: NP I) xss
 
-constructorNameList::forall a.(Generic a, HasDatatypeInfo a)=>Proxy a->[ConstructorName]
-constructorNameList = hcollapse . hliftA (K . constructorName) . constructorInfo . datatypeInfo
-
 functorToPerConstructorNP::(Generic a, Functor g, Functor h)=>TransformEach g h (Code a)->g a->NP (K (h a)) (Code a)
 functorToPerConstructorNP transform = reconstructA . transform . reAssociateNP . functorToNP
 
 functorToPerConstructorList::(Generic a, Functor g, Functor h)=>TransformEach g h (Code a)->g a->[h a]  -- one per constructor
 functorToPerConstructorList transform = hcollapse . functorToPerConstructorNP transform
 
+functorToPerConstructorList'::(Generic a, Functor g, Functor h)=>TransformEach g h (Code a)->g a->[(g (Maybe a), h a)]  -- one per constructor
+functorToPerConstructorList' transform ga =
+  let origSplit = unComp <$> (hcollapse $ functorToPerConstructorNP id ga)
+      transformed = hcollapse $ functorToPerConstructorNP transform ga
+  in zip origSplit transformed
+
 functorDoPerConstructor::(Generic a, Functor g, Applicative h)=>MapFieldsAndSequence (g :.: Maybe) h (Code a)->g a->[h a]  -- one per constructor
 functorDoPerConstructor mapFsAndS = functorToPerConstructorList (mapFsAndS . distributeToFields)
+
+functorDoPerConstructor'::(Generic a, Functor g, Applicative h)=>MapFieldsAndSequence (g :.: Maybe) h (Code a)->g a->[(g (Maybe a), h a)]  
+functorDoPerConstructor' mapFsAndS = functorToPerConstructorList' (mapFsAndS . distributeToFields)
 
 functorDoPerConstructorWithNames::forall a g h.(Generic a, HasDatatypeInfo a, Functor g, Applicative h)
     =>MapFieldsAndSequence (g :.: Maybe) h (Code a)
@@ -140,6 +158,13 @@ functorDoPerConstructorWithNames mapFsAndS ga =
   let conNames = constructorNameList (Proxy :: Proxy a)-- hcollapse . hliftA (K . constructorName) . constructorInfo $ datatypeInfo (Proxy :: Proxy a)  -- [ConstructorName]
   in zip conNames (functorDoPerConstructor mapFsAndS ga)
 
+functorDoPerConstructorWithNames'::forall a g h.(Generic a, HasDatatypeInfo a, Functor g, Applicative h)
+    =>MapFieldsAndSequence (g :.: Maybe) h (Code a)
+    ->g a
+    ->[(ConstructorName,g (Maybe a), h a)]  -- one per constructor
+functorDoPerConstructorWithNames' mapFsAndS ga =
+  let conNames = constructorNameList (Proxy :: Proxy a)-- hcollapse . hliftA (K . constructorName) . constructorInfo $ datatypeInfo (Proxy :: Proxy a)  -- [ConstructorName]
+  in zipWith (\name (o,t) -> (name,o,t)) conNames (functorDoPerConstructor' mapFsAndS ga)
 
 toPerConstructorNP::(Generic a, Functor h)=>TransformEach I h (Code a)->a->NP (K (h a)) (Code a)
 toPerConstructorNP t a = functorToPerConstructorNP t (I a)
@@ -147,12 +172,51 @@ toPerConstructorNP t a = functorToPerConstructorNP t (I a)
 toPerConstructorList::(Generic a, Functor h)=>TransformEach I h (Code a)->a->[h a]  -- one per constructor
 toPerConstructorList t a = functorToPerConstructorList t (I a)
 
+toPerConstructorList'::(Generic a, Functor h)=>TransformEach I h (Code a)->a->[(Maybe a, h a)]  -- one per constructor
+toPerConstructorList' t a = first unI <$> functorToPerConstructorList' t (I a)
+
 doPerConstructor::(Generic a, Applicative h)=>MapFieldsAndSequence (I :.: Maybe) h (Code a)->a->[h a]  -- one per constructor
 doPerConstructor mfs a = functorDoPerConstructor mfs (I a)
 
+doPerConstructor'::(Generic a, Applicative h)=>MapFieldsAndSequence (I :.: Maybe) h (Code a)->a->[(Maybe a, h a)]  -- one per constructor
+doPerConstructor' mfs a = first unI <$> functorDoPerConstructor' mfs (I a)
 
 doPerConstructorWithNames::forall a h.(Generic a, HasDatatypeInfo a, Applicative h)
   =>MapFieldsAndSequence (I :.: Maybe) h (Code a)
   ->a
   ->[(ConstructorName,h a)]  -- one per constructor
 doPerConstructorWithNames mapFsAndS a = functorDoPerConstructorWithNames mapFsAndS (I a)
+
+doPerConstructorWithNames'::forall a h.(Generic a, HasDatatypeInfo a, Applicative h)
+  =>MapFieldsAndSequence (I :.: Maybe) h (Code a)
+  ->a
+  ->[(ConstructorName,Maybe a, h a)]  -- one per constructor
+doPerConstructorWithNames' mapFsAndS a =
+  let f (n,io,t) = (n,unI io,t)
+  in f <$> functorDoPerConstructorWithNames' mapFsAndS (I a)
+
+
+-- metadata utils
+npConInfo::forall a.(Generic a, HasDatatypeInfo a)=>Proxy a->NP ConstructorInfo (Code a)
+npConInfo = constructorInfo . datatypeInfo
+
+constructorNameList::forall a.(Generic a, HasDatatypeInfo a)=>Proxy a->[ConstructorName]
+constructorNameList = hcollapse . hliftA (K . constructorName) . npConInfo 
+
+getFieldNames::SListI xs=>ConstructorInfo xs -> NP (K (Maybe FieldName)) xs
+getFieldNames ci = case ci of
+                     Record _ npfi -> hmap (\(FieldInfo name) -> K (Just name)) npfi
+                     _             -> hpure (K Nothing)
+
+maybeFieldNamePOP::(Generic a, HasDatatypeInfo a)=>Proxy a->POP (K (Maybe FieldName)) (Code a)  
+maybeFieldNamePOP proxy =
+  let sListIC = Proxy :: Proxy SListI
+  in POP $ hcliftA sListIC getFieldNames (npConInfo proxy) -- POP (K (Maybe FieldName)) (Code a)
+
+constructorData::(Generic a, HasDatatypeInfo a)=>Proxy a -> ([ConstructorName],POP (K (Maybe FieldName)) (Code a))                        
+constructorData proxy =
+  let npci = npConInfo proxy
+      sListIC = Proxy :: Proxy SListI
+      conList = hcollapse $ hliftA (K . constructorName)  npci
+      mFieldNamePOP = POP $ hcliftA sListIC getFieldNames npci -- POP (K (Maybe FieldName)) (Code a)
+  in (conList, mFieldNamePOP)

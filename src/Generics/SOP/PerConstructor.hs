@@ -120,10 +120,14 @@ class NatAt (f :: k -> *) (h :: k -> *) (a :: k) where
   eta::f a -> h a
 
 mapFieldsAndSequence'::forall f h xss.(Applicative h, SListI2 xss, All2 (NatAt f h) xss)=>MapFieldsAndSequence f h xss
-mapFieldsAndSequence' =
+mapFieldsAndSequence' = mapFieldsAndCustomSequence hsequence
+
+mapFieldsAndCustomSequence::forall f h xss.(Applicative h, SListI2 xss, All2 (NatAt f h) xss)=>(forall xs.SListI xs=>NP h xs -> h (NP I xs))->MapFieldsAndSequence f h xss
+mapFieldsAndCustomSequence customSequence =
   let sListIC = Proxy :: Proxy SListI
       mapIC = Proxy :: Proxy (NatAt f h)
-  in hcliftA sListIC (Comp . hsequence) . unPOP . hcliftA mapIC eta
+  in hcliftA sListIC (Comp . customSequence) . unPOP . hcliftA mapIC eta
+
 
 
 {-

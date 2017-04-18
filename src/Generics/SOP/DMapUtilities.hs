@@ -112,10 +112,17 @@ proveAddFunctorIsSListI =
   in 
 -}
 
+addFunctorDict :: forall f xs . Proxy f -> SList xs -> Dict SListI (AddFunctor f xs)
+addFunctorDict pf SNil  = Dict
+addFunctorDict pf SCons = goCons (sList :: SList xs)
+  where
+    goCons :: forall y ys . SList (y ': ys) -> Dict SListI (AddFunctor f (y ': ys))
+    goCons SCons = withDict (mapDict pf (sList :: SList ys)) Dict
+
 npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
                                                                  , SListI xs
                                                                  , DM.GCompare k
                                                                  , k ~ TypeListTag (AddFunctor g xs)
                                                                  , SListI (AddFunctor g xs))
   =>(DM.DMap k f -> f (DM.DMap k Identity))->NP (f :.: g) xs -> f (NP g xs)
-npSequenceViaDMap sequenceDMap = fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose
+npSequenceViaDMap sequenceDMap = withDict (addFunctorDict (Proxy :: Proxy g) sList) $ fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose

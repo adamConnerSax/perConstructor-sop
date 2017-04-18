@@ -14,7 +14,7 @@ module Generics.SOP.DMapUtilities where
 import           Generics.SOP
 import           Generics.SOP.NP
 import           Generics.SOP.NS    (ap_NS)
-
+import           Generics.SOP.Dict
 import qualified Data.Dependent.Map as DM
 import           Data.Dependent.Sum (DSum ((:=>)))
 import qualified Data.Dependent.Sum as DS
@@ -64,10 +64,6 @@ type family AddFunctor (f :: * -> *) (xs :: [*]) :: [*] where
   AddFunctor f '[] = '[]
   AddFunctor f (x ': xs) = f x ': AddFunctor f xs
 
-type family RemoveFunctor (f :: * -> *) (fxs :: [*]) :: [*] where
-  RemoveFunctor f '[] = '[]
-  RemoveFunctor f (f x ': fxs) = x ': RemoveFunctor f fxs  
-
 npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (AddFunctor g xs)
 npUnCompose np = go np where
   go::NP (f :.: g) ys -> NP f (AddFunctor g ys)
@@ -109,6 +105,12 @@ dSumToNS (tag :=> fa) = go tag fa where
   go Here fy = Z fy
   go (There tag') fy = S (go tag' fy)
 
+{-
+proveAddFunctorIsSListI::SListI xs => Dict SListI (AddFunctor g xs)
+proveAddFunctorIsSListI =
+  let slistIC = Proxy :: Proxy (SListI)
+  in 
+-}
 
 npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
                                                                  , SListI xs

@@ -21,6 +21,9 @@ import qualified Data.Dependent.Sum as DS
 import           Data.GADT.Compare  ((:~:) (..), GCompare (..), GEq (..),
                                      GOrdering (..))
 
+
+import Data.Functor.Identity         (Identity(Identity,runIdentity))
+import Data.Maybe (fromJust)
 --import           Data.Type.List (Map)
 
 
@@ -105,3 +108,12 @@ dSumToNS (tag :=> fa) = go tag fa where
   go::TypeListTag ys y->f y->NS f ys
   go Here fy = Z fy
   go (There tag') fy = S (go tag' fy)
+
+
+npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
+                                                                 , SListI xs
+                                                                 , DM.GCompare k
+                                                                 , k ~ TypeListTag (AddFunctor g xs)
+                                                                 , SListI (AddFunctor g xs))
+  =>(DM.DMap k f -> f (DM.DMap k Identity))->NP (f :.: g) xs -> f (NP g xs)
+npSequenceViaDMap sequenceDMap = fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose

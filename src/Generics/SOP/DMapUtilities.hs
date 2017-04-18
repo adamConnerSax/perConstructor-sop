@@ -119,6 +119,7 @@ addFunctorDict pf SCons = goCons (sList :: SList xs)
     goCons :: forall y ys . SList (y ': ys) -> Dict SListI (AddFunctor f (y ': ys))
     goCons SCons = withDict (mapDict pf (sList :: SList ys)) Dict
 
+
 npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
                                                                  , SListI xs
                                                                  , DM.GCompare k

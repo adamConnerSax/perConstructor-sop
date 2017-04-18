@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE RankNTypes            #-}
 module Generics.SOP.DMapUtilities where
 
 import           Generics.SOP
@@ -56,31 +57,27 @@ npToDMap::NP f xs -> DM.DMap (TypeListTag xs) f
 npToDMap Nil = DM.empty
 npToDMap (fx :* np') = DM.insert Here fx $ DM.mapKeysMonotonic There $ npToDMap np'
 
-type family AddFunctor (f :: * -> *) (xs :: [*]) where
+type family AddFunctor (f :: * -> *) (xs :: [*]) :: [*] where
   AddFunctor f '[] = '[]
   AddFunctor f (x ': xs) = f x ': AddFunctor f xs
 
-npUnCompose::SListI xs=>NP (f :.: g) xs -> NP f (AddFunctor g xs)
+type family RemoveFunctor (f :: * -> *) (fxs :: [*]) :: [*] where
+  RemoveFunctor f '[] = '[]
+  RemoveFunctor f (f x ': fxs) = x ': RemoveFunctor f fxs  
+
+npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (AddFunctor g xs)
 npUnCompose np = go np where
   go::NP (f :.: g) ys -> NP f (AddFunctor g ys)
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
-{-
-- Is this possible?  Shifting functors into and out of typelists?
-instance SListI (AddFunctor f '[]) where
-  sList = SNil
 
-instance SListI (AddFunctor f xs) => SListI (AddFunctor f (x ': xs)) where
-  sList = SCons
+npRecompose::forall f g xs.SListI xs=>NP f (AddFunctor g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
+npRecompose = go sList where
+  go::forall ys.SListI ys=>SList ys ->  NP f (AddFunctor g ys) -> NP (f :.: g) ys
+  go SNil Nil = Nil
+  go SCons (fgx :* np') = Comp fgx :* go sList np'
 
-
-npRecompose::SListI xs=>NP f (AddFunctor g xs) -> NP (f :.: g) xs
-npRecompose np = go np where
-  go::NP f (AddFunctor g ys) -> NP (f :.: g) ys
-  go Nil = Nil
-  go (fgx :* np') = Comp fgx :* go np'
--}
 
 makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
 makeTypeListTagNP = go sList where

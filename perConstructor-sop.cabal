@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Generics.SOP.PerConstructor
                        Generics.SOP.DMapUtilities
+                       Generics.SOP.Distribute
   build-depends:       base >= 4.7 && < 5
                      , generics-sop
                      , dependent-map

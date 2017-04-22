@@ -50,7 +50,7 @@ module Generics.SOP.PerConstructor
 import           Generics.SOP.Distribute
 
 import           Generics.SOP hiding (Compose)
-import           Generics.SOP.Dict   (Dict,pureAll2)
+import           Generics.SOP.Dict   (Dict(..),pureAll2)
 
 import           Control.Arrow (first, (&&&))
 import           Data.Proxy (Proxy(Proxy))

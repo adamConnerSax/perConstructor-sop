@@ -8,7 +8,25 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ConstraintKinds            #-}
-module Generics.SOP.Distribute where
+module Generics.SOP.Distribute
+  (
+    expand
+  , expandA
+  , WrappedProjection
+  , wrappedProjections
+  , shiftWrappedProjection
+  , WrappedInjection
+  , wrappedInjections
+  , shiftWrappedInjection
+  , distributeNP
+  , distributeI_NP
+  , functorToNP
+  , reAssociateNP
+  , distributeToFields
+  , reconstructA
+  , functionPOPFromClass
+  , Dict
+  ) where
 
 import           Generics.SOP hiding (Compose)
 import           Generics.SOP.Dict (Dict,withDict)

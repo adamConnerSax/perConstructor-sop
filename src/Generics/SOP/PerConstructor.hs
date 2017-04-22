@@ -6,15 +6,15 @@
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
---{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE AllowAmbiguousTypes        #-}
 module Generics.SOP.PerConstructor
   (
     MapFieldsAndSequence
   , mapFieldsAndSequence
-  , mapFieldsAndSequence'
-  , NatAt(..)
+  , mapFieldsFromConstraintAndCustomSequence
+  , mapFieldsFromConstraintAndSequence
+--  , NatAt(..)
   , TransformEach
   , functorToPerConstructorNP
   , functorToPerConstructorList
@@ -43,11 +43,15 @@ module Generics.SOP.PerConstructor
   , unComp
   , I(..)
   , Code
+  , All2
+  , Dict
   ) where
 
 import           Generics.SOP.Distribute
 
 import           Generics.SOP hiding (Compose)
+import           Generics.SOP.Dict   (Dict,pureAll2)
+
 import           Control.Arrow (first, (&&&))
 import           Data.Proxy (Proxy(Proxy))
 
@@ -55,23 +59,45 @@ import           Data.Proxy (Proxy(Proxy))
 type MapFieldsAndSequence f h xss = POP f xss -> NP (h :.: NP I) xss
 
 mapFieldsAndSequence::(Applicative h, SListI2 xss)=>(forall a.f a->h a) -> MapFieldsAndSequence f h xss
-mapFieldsAndSequence q =
-  let sListIC = Proxy :: Proxy SListI
-  in hcliftA sListIC (Comp . hsequence) . unPOP . hliftA q
+mapFieldsAndSequence q = mapFieldsFromConstraintAndCustomSequence pureAll2 q hsequence
 
+mapFieldsFromConstraintAndSequence::forall c f h xss.(Applicative h, SListI2 xss)
+  =>Dict (All2 c) xss -- constraint for the field mappings
+  ->(forall a.c a=>f a -> h a) -- function for the field mappings
+  ->(forall xs.SListI xs=>NP h xs -> h (NP I xs)) -- sequencing function
+  ->MapFieldsAndSequence f h xss
+mapFieldsFromConstraintAndSequence dict fn sequence = mapFieldsFromConstraintAndCustomSequence dict fn hsequence
+
+
+{-
 {- Higher-kinded Natural Transformation at the type a -}
 class NatAt (f :: k -> *) (h :: k -> *) (a :: k) where
   eta::f a -> h a
+-}
 
-mapFieldsAndSequence'::forall f h xss.(Applicative h, SListI2 xss, All2 (NatAt f h) xss)=>MapFieldsAndSequence f h xss
-mapFieldsAndSequence' = mapFieldsAndCustomSequence hsequence
+--mapFieldsAndSequence'::forall f h xss.(Applicative h, SListI2 xss, All2 (NatAt f h) xss)=>MapFieldsAndSequence f h xss
+--mapFieldsAndSequence' = mapFieldsAndCustomSequence hsequence
 
+mapFieldsFromConstraintAndCustomSequence::forall c f h xss.SListI2 xss
+  =>Dict (All2 c) xss -- constraint for the field mappings
+  ->(forall a.c a=>f a -> h a) -- function for the field mappings
+  ->(forall xs.SListI xs=>NP h xs -> h (NP I xs)) -- sequencing function
+  ->MapFieldsAndSequence f h xss
+mapFieldsFromConstraintAndCustomSequence dict fn sequence = 
+  let sListIC = Proxy :: Proxy SListI
+  in hcliftA sListIC (Comp . sequence) . unPOP . mapFieldsFromConstraint dict fn
+
+mapFieldsFromConstraint::forall c f h xss.SListI2 xss=>Dict (All2 c) xss -> (forall a.c a=>f a -> h a) -> POP f xss -> POP h xss
+mapFieldsFromConstraint d fn = hap (functionPOPFromClass d fn) 
+
+
+{-
 mapFieldsAndCustomSequence::forall f h xss.(Applicative h, SListI2 xss, All2 (NatAt f h) xss)=>(forall xs.SListI xs=>NP h xs -> h (NP I xs))->MapFieldsAndSequence f h xss
 mapFieldsAndCustomSequence customSequence =
   let sListIC = Proxy :: Proxy SListI
       mapIC = Proxy :: Proxy (NatAt f h)
   in hcliftA sListIC (Comp . customSequence) . unPOP . hcliftA mapIC eta
-
+-}
 
 
 {-

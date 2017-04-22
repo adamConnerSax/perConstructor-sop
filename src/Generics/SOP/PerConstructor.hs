@@ -44,7 +44,7 @@ module Generics.SOP.PerConstructor
   , I(..)
   , Code
   , All2
-  , Dict
+  , Dict(..)
   ) where
 
 import           Generics.SOP.Distribute

@@ -11,10 +11,13 @@
 {-# LANGUAGE RankNTypes            #-}
 module Generics.SOP.DMapUtilities where
 
-import           Generics.SOP
-import           Generics.SOP.NP
+import           Generics.SOP    (hmap,hcollapse,NS(..),NP(..),SListI(..)
+                                 ,SListI2,SList(..),All2,Compose
+                                 ,FieldInfo,ConstructorInfo,K(..)
+                                 , type (-.->)(Fn), (:.:)(Comp),unComp,Proxy(..))
+import           Generics.SOP.NP (sequence'_NP)
 import           Generics.SOP.NS    (ap_NS)
-import           Generics.SOP.Dict
+import           Generics.SOP.Dict  (Dict(Dict),withDict)
 import qualified Data.Dependent.Map as DM
 import           Data.Dependent.Sum (DSum ((:=>)))
 import qualified Data.Dependent.Sum as DS
@@ -24,7 +27,6 @@ import           Data.GADT.Compare  ((:~:) (..), GCompare (..), GEq (..),
 
 import Data.Functor.Identity         (Identity(Identity,runIdentity))
 import Data.Maybe (fromJust)
---import           Data.Type.List (Map)
 
 
 -- some preliminaries for type-level tags for the constructors of sum types
@@ -51,39 +53,9 @@ instance (All2 (Compose Eq FieldInfo) xss
          ,All2 (Compose Ord FieldInfo) xss)=>DS.OrdTag (TypeListTag xss) ConstructorInfo where
   compareTagged Here Here = compare
 
--- This was tricky!
--- It inserts into a DMap on a shorter type-list, np'
--- The DMap from the shorter list (np') has proofs that the various x are in the shorter list
--- adding a "There" proves that x's are in the list which is one element longer, thus making the
--- new DMap have proofs on the correct list
 npToDMap::NP f xs -> DM.DMap (TypeListTag xs) f
 npToDMap Nil = DM.empty
 npToDMap (fx :* np') = DM.insert Here fx $ DM.mapKeysMonotonic There $ npToDMap np'
-
-type family FunctorWrapTypeList (f :: * -> *) (xs :: [*]) :: [*] where
-  FunctorWrapTypeList f '[] = '[]
-  FunctorWrapTypeList f (x ': xs) = f x ': FunctorWrapTypeList f xs
-
-npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (FunctorWrapTypeList g xs)
-npUnCompose np = go np where
-  go::NP (f :.: g) ys -> NP f (FunctorWrapTypeList g ys)
-  go Nil = Nil
-  go (fgx :* np') = unComp fgx :* go np'
-
-
-npRecompose::forall f g xs.SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
-npRecompose = go sList where
-  go::forall ys.SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
-  go SNil Nil = Nil
-  go SCons (fgx :* np') = Comp fgx :* go sList np'
-
-
-makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
-makeTypeListTagNP = go sList where
-  go::forall ys.SListI ys=>SList ys->NP (TypeListTag ys) ys
-  go SNil = Nil
-  go SCons = Here :* hmap There (go sList)
-
 
 --NB: This can fail since there is no guarantee that the DMap has entries for every tag
 --But, the length check is enough since the NP has to be the right length and the DMap entries are
@@ -106,6 +78,44 @@ dSumToNS (tag :=> fa) = go tag fa where
   go (There tag') fy = S (go tag' fy)
 
 
+-- these are here to allow moving functors in and out of typelists
+type family FunctorWrapTypeList (f :: * -> *) (xs :: [*]) :: [*] where
+  FunctorWrapTypeList f '[] = '[]
+  FunctorWrapTypeList f (x ': xs) = f x ': FunctorWrapTypeList f xs
+
+type family FunctorWrapTypeListOfLists (f :: * -> *) (xss :: [[*]]) :: [[*]] where
+  FunctorWrapTypeListOfLists f '[] = '[]
+  FunctorWrapTypeListOfLists f (xs ': xss') = FunctorWrapTypeList f xs ': FunctorWrapTypeListOfLists f xss'
+
+npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (FunctorWrapTypeList g xs)
+npUnCompose np = go np where
+  go::NP (f :.: g) ys -> NP f (FunctorWrapTypeList g ys)
+  go Nil = Nil
+  go (fgx :* np') = unComp fgx :* go np'
+
+
+npRecompose::forall f g xs.SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
+npRecompose = go sList where
+  go::forall ys.SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
+  go SNil Nil = Nil
+  go SCons (fgx :* np') = Comp fgx :* go sList np'
+
+nsOfnpRecompose::forall f g xss.(SListI xss, SListI2 xss)=>NS (NP f) (FunctorWrapTypeListOfLists g xss) -> NS (NP (f :.: g)) xss
+nsOfnpRecompose = go sList
+  where
+    go::forall yss.(SListI2 yss, SListI yss)=>SList yss->NS (NP f) (FunctorWrapTypeListOfLists g yss) -> NS (NP (f :.: g)) yss
+    go SNil _ = undefined
+    go SCons (Z np) = Z (npRecompose np)
+    go SCons (S ns') = S (go sList ns')
+
+makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
+makeTypeListTagNP = go sList where
+  go::forall ys.SListI ys=>SList ys->NP (TypeListTag ys) ys
+  go SNil = Nil
+  go SCons = Here :* hmap There (go sList)
+
+
+-- required to prove the wrapped typelist is an instance of SListI
 functorWrappedSListIsSList :: forall f xs . SListI xs=>Proxy f -> SList xs -> Dict SListI (FunctorWrapTypeList f xs)
 functorWrappedSListIsSList pf SNil  = Dict
 functorWrappedSListIsSList pf SCons = goCons (sList :: SList xs)

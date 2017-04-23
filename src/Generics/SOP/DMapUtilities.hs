@@ -60,20 +60,20 @@ npToDMap::NP f xs -> DM.DMap (TypeListTag xs) f
 npToDMap Nil = DM.empty
 npToDMap (fx :* np') = DM.insert Here fx $ DM.mapKeysMonotonic There $ npToDMap np'
 
-type family AddFunctor (f :: * -> *) (xs :: [*]) :: [*] where
-  AddFunctor f '[] = '[]
-  AddFunctor f (x ': xs) = f x ': AddFunctor f xs
+type family FunctorWrapTypeList (f :: * -> *) (xs :: [*]) :: [*] where
+  FunctorWrapTypeList f '[] = '[]
+  FunctorWrapTypeList f (x ': xs) = f x ': FunctorWrapTypeList f xs
 
-npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (AddFunctor g xs)
+npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (FunctorWrapTypeList g xs)
 npUnCompose np = go np where
-  go::NP (f :.: g) ys -> NP f (AddFunctor g ys)
+  go::NP (f :.: g) ys -> NP f (FunctorWrapTypeList g ys)
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
 
-npRecompose::forall f g xs.SListI xs=>NP f (AddFunctor g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
+npRecompose::forall f g xs.SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
 npRecompose = go sList where
-  go::forall ys.SListI ys=>SList ys ->  NP f (AddFunctor g ys) -> NP (f :.: g) ys
+  go::forall ys.SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
   go SNil Nil = Nil
   go SCons (fgx :* np') = Comp fgx :* go sList np'
 
@@ -105,24 +105,18 @@ dSumToNS (tag :=> fa) = go tag fa where
   go Here fy = Z fy
   go (There tag') fy = S (go tag' fy)
 
-{-
-proveAddFunctorIsSListI::SListI xs => Dict SListI (AddFunctor g xs)
-proveAddFunctorIsSListI =
-  let slistIC = Proxy :: Proxy (SListI)
-  in 
--}
 
-addFunctorDict :: forall f xs . SListI xs=>Proxy f -> SList xs -> Dict SListI (AddFunctor f xs)
-addFunctorDict pf SNil  = Dict
-addFunctorDict pf SCons = goCons (sList :: SList xs)
+functorWrappedSListIsSList :: forall f xs . SListI xs=>Proxy f -> SList xs -> Dict SListI (FunctorWrapTypeList f xs)
+functorWrappedSListIsSList pf SNil  = Dict
+functorWrappedSListIsSList pf SCons = goCons (sList :: SList xs)
   where
-    goCons :: forall y ys . SList (y ': ys) -> Dict SListI (AddFunctor f (y ': ys))
-    goCons SCons = withDict (addFunctorDict pf (sList :: SList ys)) Dict
+    goCons :: forall y ys . SList (y ': ys) -> Dict SListI (FunctorWrapTypeList f (y ': ys))
+    goCons SCons = withDict (functorWrappedSListIsSList  pf (sList :: SList ys)) Dict
 
 
 npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
                                                                  , SListI xs
                                                                  , DM.GCompare k
-                                                                 , k ~ TypeListTag (AddFunctor g xs))
+                                                                 , k ~ TypeListTag (FunctorWrapTypeList g xs))
   =>(DM.DMap k f -> f (DM.DMap k Identity))->NP (f :.: g) xs -> f (NP g xs)
-npSequenceViaDMap sequenceDMap = withDict (addFunctorDict (Proxy :: Proxy g) (sList :: SList xs)) $ fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose
+npSequenceViaDMap sequenceDMap = withDict (functorWrappedSListIsSList (Proxy :: Proxy g) (sList :: SList xs)) $ fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose

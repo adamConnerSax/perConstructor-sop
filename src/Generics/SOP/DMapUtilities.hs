@@ -11,22 +11,24 @@
 {-# LANGUAGE RankNTypes            #-}
 module Generics.SOP.DMapUtilities where
 
-import           Generics.SOP    (hmap,hcollapse,NS(..),NP(..),SListI(..)
-                                 ,SListI2,SList(..),All2,Compose
-                                 ,FieldInfo,ConstructorInfo,K(..)
-                                 , type (-.->)(Fn), (:.:)(Comp),unComp,Proxy(..))
-import           Generics.SOP.NP (sequence'_NP)
-import           Generics.SOP.NS    (ap_NS)
-import           Generics.SOP.Dict  (Dict(Dict),withDict)
+import           Generics.SOP          (hmap,hcollapse,NS(..),NP(..),SListI(..)
+                                       ,SListI2,SList(..),All2,Compose
+                                       ,FieldInfo,ConstructorInfo,K(..)
+                                       , type (-.->)(Fn), (:.:)(Comp), unComp,Proxy(..))
+import           Generics.SOP.NP       (sequence'_NP)
+import           Generics.SOP.NS       (ap_NS)
+import           Generics.SOP.Dict     (Dict(Dict),withDict)
+
 import qualified Data.Dependent.Map as DM
-import           Data.Dependent.Sum (DSum ((:=>)))
+import           Data.Dependent.Sum    (DSum ((:=>)))
 import qualified Data.Dependent.Sum as DS
-import           Data.GADT.Compare  ((:~:) (..), GCompare (..), GEq (..),
-                                     GOrdering (..))
+
+import           Data.GADT.Compare     ((:~:) (..), GCompare (..), GEq (..),
+                                        GOrdering (..))
 
 
-import Data.Functor.Identity         (Identity(Identity,runIdentity))
-import Data.Maybe (fromJust)
+import Data.Functor.Identity           (Identity(Identity,runIdentity))
+import Data.Maybe                      (fromJust)
 
 
 -- some preliminaries for type-level tags for the constructors of sum types
@@ -124,9 +126,14 @@ functorWrappedSListIsSList pf SCons = goCons (sList :: SList xs)
     goCons SCons = withDict (functorWrappedSListIsSList  pf (sList :: SList ys)) Dict
 
 
+-- NB: THe fromJust in there is safe!
+-- dMapToNP has to return Maybe NP since the DMap could be incomplete.
+-- But since we built this DMap from an NP, we know it's complete and dMapToNp will return a Just.  
 npSequenceViaDMap::forall k (f:: * -> *)  (g:: * -> *) (xs::[*]).(Functor f
                                                                  , SListI xs
                                                                  , DM.GCompare k
                                                                  , k ~ TypeListTag (FunctorWrapTypeList g xs))
   =>(DM.DMap k f -> f (DM.DMap k Identity))->NP (f :.: g) xs -> f (NP g xs)
-npSequenceViaDMap sequenceDMap = withDict (functorWrappedSListIsSList (Proxy :: Proxy g) (sList :: SList xs)) $ fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose
+npSequenceViaDMap sequenceDMap =
+  withDict (functorWrappedSListIsSList (Proxy :: Proxy g) (sList :: SList xs)) $
+  fmap (hmap (runIdentity . unComp) . npRecompose . fromJust . dMapToNP) .  sequenceDMap . npToDMap . npUnCompose

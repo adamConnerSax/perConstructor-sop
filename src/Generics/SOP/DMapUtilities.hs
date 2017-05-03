@@ -37,6 +37,7 @@ module Generics.SOP.DMapUtilities
   
   -- * Functor wrapping/unwrapping utilities for 'NP' 
   , npUnCompose
+  , nsOfnpUnCompose
   , npReCompose
   , nsOfnpReCompose
   

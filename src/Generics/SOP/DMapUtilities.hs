@@ -137,6 +137,15 @@ npUnCompose np = go np where
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
+
+nsOfnpUnCompose::forall f g xss.(SListI xss, SListI2 xss)=>NS (NP (f :.: g)) xss -> NS (NP f) (FunctorWrapTypeListOfLists g xss)
+nsOfnpUnCompose = go sList where
+  go::forall yss. (SListI yss, SListI2 yss) => SList yss -> NS (NP (f :.: g)) yss -> NS (NP f) (FunctorWrapTypeListOfLists g yss)
+  go SNil _ = error "An NS cannot be empty"
+  go SCons (Z np) = Z (npUnCompose np)
+  go SCons (S ns') = S (go sList ns') 
+
+
 -- | The inverse of 'npUnCompose'.  Given a type-list indexed product where all the types in the list are applications of the same functor,
 -- remove that functor from all the types in the list and put it in the functor parameter of the 'NP'.  The values in the product itself remain the same up
 -- to types representing composition of the functors.

@@ -25,7 +25,7 @@ module Generics.SOP.DMapUtilities
   , FunctorWrapTypeListOfLists
   
     -- * Types
-  , TypeListTag
+  , TypeListTag (..)
   
     -- * Conversions
     -- ** 'NP' \<-\> 'DM.DMap'
@@ -70,24 +70,24 @@ import Data.Functor.Identity           (Identity(Identity,runIdentity))
 
 -- |A Tag type for making a 'DM.DMap' keyed by a type-level list
 data TypeListTag (xs :: [k]) (x :: k) where -- x is in xs
-  Here  :: TypeListTag (x ': xs) x          -- x begins xs
-  There :: TypeListTag xs x -> TypeListTag (y ': xs) x -- given that x is in xs, x is also in (y ': xs)
+  TLHead  :: TypeListTag (x ': xs) x          -- x begins xs
+  TLTail :: TypeListTag xs x -> TypeListTag (y ': xs) x -- given that x is in xs, x is also in (y ': xs)
 
 instance GEq (TypeListTag xs) where
-  geq Here      Here      = Just Refl
-  geq (There x) (There y) = geq x y
+  geq TLHead      TLHead      = Just Refl
+  geq (TLTail x) (TLTail y) = geq x y
   geq _         _         = Nothing
 
 instance GCompare (TypeListTag xs) where
-  gcompare Here Here = GEQ
-  gcompare Here (There _) = GLT
-  gcompare (There _) Here = GGT
-  gcompare (There x) (There y) = gcompare x y
+  gcompare TLHead TLHead = GEQ
+  gcompare TLHead (TLTail _) = GLT
+  gcompare (TLTail _) TLHead = GGT
+  gcompare (TLTail x) (TLTail y) = gcompare x y
 
 -- |Convert an 'NP' indexed by typelist xs into a 'DM.DMap' indexed by 'TypeListTag' xs
 npToDMap::NP f xs -> DM.DMap (TypeListTag xs) f
 npToDMap Nil = DM.empty
-npToDMap (fx :* np') = DM.insert Here fx $ DM.mapKeysMonotonic There $ npToDMap np'
+npToDMap (fx :* np') = DM.insert TLHead fx $ DM.mapKeysMonotonic TLTail $ npToDMap np'
 
 -- |Convert a 'DM.DMap' indexed by 'TypeListTag' xs to an 'NP'
 -- |NB: This can fail since there is no guarantee that the 'DM.DMap' has entries for every tag. Hence it returns a 'Maybe'
@@ -107,15 +107,15 @@ nsToDSum ns =
 dSumToNS::SListI xs=>DS.DSum (TypeListTag xs) f -> NS f xs
 dSumToNS (tag :=> fa) = go tag fa where
   go::TypeListTag ys y->f y->NS f ys
-  go Here fy = Z fy
-  go (There tag') fy = S (go tag' fy)
+  go TLHead fy = Z fy
+  go (TLTail tag') fy = S (go tag' fy)
 
 -- | Make an NP of TypeListTag xs for a typelist xs. 
 makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
 makeTypeListTagNP = go sList where
   go::forall ys.SListI ys=>SList ys->NP (TypeListTag ys) ys
   go SNil = Nil
-  go SCons = Here :* hmap There (go sList)
+  go SCons = TLHead :* hmap TLTail (go sList)
 
 
 -- these are here to allow moving functors in and out of typelists

@@ -120,11 +120,11 @@ makeTypeListTagNP = go sList where
 
 
 -- these are here to allow moving functors in and out of typelists
-type family FunctorWrapTypeList (f :: * -> *) (xs :: [*]) :: [*] where
+type family FunctorWrapTypeList (f :: k1 -> k2) (xs :: [k1]) :: [k2] where
   FunctorWrapTypeList f '[] = '[]
   FunctorWrapTypeList f (x ': xs) = f x ': FunctorWrapTypeList f xs
 
-type family FunctorWrapTypeListOfLists (f :: * -> *) (xss :: [[*]]) :: [[*]] where
+type family FunctorWrapTypeListOfLists (f :: k1 -> k2) (xss :: [[k1]]) :: [[k2]] where
   FunctorWrapTypeListOfLists f '[] = '[]
   FunctorWrapTypeListOfLists f (xs ': xss') = FunctorWrapTypeList f xs ': FunctorWrapTypeListOfLists f xss'
 
@@ -133,14 +133,14 @@ type family FunctorWrapTypeListOfLists (f :: * -> *) (xss :: [[*]]) :: [[*]] whe
 -- composition has been moved to the type-list.  The values in the product remain the same (up to types representing composition of the functors). E.g.,
 --
 -- > (f :.: g) 2 :* (f :.: g) 3.0 :* 'Nil :: NP (f :.: g) '[Int,Double] -> f (g 2) :* f (g 3.0) :* 'Nil :: NP f '[g Int, g Double]
-npUnCompose::forall f g xs.SListI xs=>NP (f :.: g) xs -> NP f (FunctorWrapTypeList g xs)
+npUnCompose :: forall f g (xs :: [k]) . SListI xs=>NP (f :.: g) xs -> NP f (FunctorWrapTypeList g xs)
 npUnCompose np = go np where
   go::NP (f :.: g) ys -> NP f (FunctorWrapTypeList g ys)
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
 
-nsOfnpUnCompose::forall f g xss.(SListI xss, SListI2 xss)=>NS (NP (f :.: g)) xss -> NS (NP f) (FunctorWrapTypeListOfLists g xss)
+nsOfnpUnCompose :: forall f g xss. (SListI xss, SListI2 xss)=>NS (NP (f :.: g)) xss -> NS (NP f) (FunctorWrapTypeListOfLists g xss)
 nsOfnpUnCompose = go sList where
   go::forall yss. (SListI yss, SListI2 yss) => SList yss -> NS (NP (f :.: g)) yss -> NS (NP f) (FunctorWrapTypeListOfLists g yss)
   go SNil _ = error "An NS cannot be empty"
@@ -151,14 +151,14 @@ nsOfnpUnCompose = go sList where
 -- | The inverse of 'npUnCompose'.  Given a type-list indexed product where all the types in the list are applications of the same functor,
 -- remove that functor from all the types in the list and put it in the functor parameter of the 'NP'.  The values in the product itself remain the same up
 -- to types representing composition of the functors.
-npReCompose::forall f g xs.SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
+npReCompose :: forall f g (xs :: [k]). SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
 npReCompose = go sList where
   go::forall ys.SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
   go SNil Nil = Nil
   go SCons (fgx :* np') = Comp fgx :* go sList np'
 
 -- | ReCompose all the 'NP's in an "NS (NP f) xss".
-nsOfnpReCompose::forall f g xss.(SListI xss, SListI2 xss)=>NS (NP f) (FunctorWrapTypeListOfLists g xss) -> NS (NP (f :.: g)) xss
+nsOfnpReCompose :: forall f g xss. (SListI xss, SListI2 xss)=>NS (NP f) (FunctorWrapTypeListOfLists g xss) -> NS (NP (f :.: g)) xss
 nsOfnpReCompose = go sList
   where
     go::forall yss.(SListI2 yss, SListI yss)=>SList yss->NS (NP f) (FunctorWrapTypeListOfLists g yss) -> NS (NP (f :.: g)) yss

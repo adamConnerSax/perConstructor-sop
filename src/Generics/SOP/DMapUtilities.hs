@@ -26,6 +26,7 @@ module Generics.SOP.DMapUtilities
   
     -- * Types
   , TypeListTag (..)
+  , makeTypeListTagNP
   
     -- * Conversions
     -- ** 'NP' \<-\> 'DM.DMap'

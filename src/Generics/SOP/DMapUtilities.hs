@@ -10,6 +10,8 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE UndecidableInstances #-}
+
+{-# LANGUAGE DeriveGeneric #-}
 {-|
 Module           : Generics.SOP.DMapUtilities
 Description      : Utilities for converting between the NS/NP types of generics-sop and Dependent Maps.
@@ -48,12 +50,12 @@ module Generics.SOP.DMapUtilities
   
   -- * Proofs
   , functorWrappedSListIsSList
-  )where
+  ) where
 
 import           Generics.SOP          (hmap, hcollapse, NS(..), NP(..), SListI(..)
                                        ,SListI2, SList(..), All2, Compose
-                                       ,FieldInfo, ConstructorInfo, K(..), I (I), Code (..)
-                                       , type (-.->)(Fn), (:.:)(Comp), unComp, Proxy(..), SOP (SOP))
+                                       ,FieldInfo, ConstructorInfo, K(..), I (I), unI, Code (..)
+                                       , type (-.->)(Fn), (:.:)(Comp), unComp, Proxy(..), SOP (SOP), unSOP)
 import           Generics.SOP.NP       (sequence'_NP)
 import           Generics.SOP.NS       (ap_NS)
 import           Generics.SOP.Dict     (Dict(Dict),withDict)
@@ -70,6 +72,8 @@ import qualified Data.Type.Equality as B
 
 import Data.Functor.Identity           (Identity(Identity,runIdentity))
 
+import qualified GHC.Generics as GHCG
+import Generics.SOP (Generic)
 
 -- |A Tag type for making a 'DM.DMap' keyed by a type-level list
 data TypeListTag (xs :: [k]) (x :: k) where -- x is in xs
@@ -120,7 +124,6 @@ makeTypeListTagNP = go sList where
   go SNil = Nil
   go SCons = TLHead :* hmap TLTail (go sList)
 
-
 -- these are here to allow moving functors in and out of typelists
 type family FunctorWrapTypeList (f :: k1 -> k2) (xs :: [k1]) :: [k2] where
   FunctorWrapTypeList f '[] = '[]
@@ -129,7 +132,6 @@ type family FunctorWrapTypeList (f :: k1 -> k2) (xs :: [k1]) :: [k2] where
 type family FunctorWrapTypeListOfLists (f :: k1 -> k2) (xss :: [[k1]]) :: [[k2]] where
   FunctorWrapTypeListOfLists f '[] = '[]
   FunctorWrapTypeListOfLists f (xs ': xss') = FunctorWrapTypeList f xs ': FunctorWrapTypeListOfLists f xss'
-
 
 -- | Transform a type-list indexed product of composed functorial values into a type-list indexed product of functorial values where the inner part of the functor
 -- composition has been moved to the type-list.  The values in the product remain the same (up to types representing composition of the functors). E.g.,
@@ -141,14 +143,12 @@ npUnCompose np = go np where
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
-
 nsOfnpUnCompose :: forall f g xss. (SListI xss, SListI2 xss)=>NS (NP (f :.: g)) xss -> NS (NP f) (FunctorWrapTypeListOfLists g xss)
 nsOfnpUnCompose = go sList where
   go::forall yss. (SListI yss, SListI2 yss) => SList yss -> NS (NP (f :.: g)) yss -> NS (NP f) (FunctorWrapTypeListOfLists g yss)
   go SNil _ = error "An NS cannot be empty"
   go SCons (Z np) = Z (npUnCompose np)
   go SCons (S ns') = S (go sList ns') 
-
 
 -- | The inverse of 'npUnCompose'.  Given a type-list indexed product where all the types in the list are applications of the same functor,
 -- remove that functor from all the types in the list and put it in the functor parameter of the 'NP'.  The values in the product itself remain the same up
@@ -168,7 +168,6 @@ nsOfnpReCompose = go sList
     go SCons (Z np) = Z (npReCompose np)
     go SCons (S ns') = S (go sList ns')
 
-
 -- | Prove that "SListI xs=>(FunctorWrapTypeList f xs)" is also an instance of SListI
 functorWrappedSListIsSList :: forall f xs . SListI xs=>Proxy f -> SList xs -> Dict SListI (FunctorWrapTypeList f xs)
 functorWrappedSListIsSList pf SNil  = Dict
@@ -176,7 +175,6 @@ functorWrappedSListIsSList pf SCons = goCons (sList :: SList xs)
   where
     goCons :: forall y ys . SList (y ': ys) -> Dict SListI (FunctorWrapTypeList f (y ': ys))
     goCons SCons = withDict (functorWrappedSListIsSList  pf (sList :: SList ys)) Dict
-
 
 -- | sequence (in the sense of 'Data.Traversable.sequenceA') a functor f inside an 'NP' using a function defined over a 'DM.DMap' indexed by the same type-level-list.
 -- This is useful in cases where an efficient general solution exists for DMaps.
@@ -202,10 +200,47 @@ type family TLContains (xs :: [k]) (x :: k) :: Bool where
 type family Constructs (a :: k) :: [k] where
   Constructs a = a ': '[]
 
+-- this compiles without the TLContains constraint but that seems bad.  Unless:
+-- does TypeListTag (Code b) (Constructs a) only exist if TLContains (Code b) (Constructs a) ~ True ??
 wrapOne :: (Generic b, TLContains (Code b) (Constructs a) ~ True)
   => TypeListTag (Code b) (Constructs a) -> a -> b
 wrapOne tag = to . SOP . matchNS tag  
   where
     matchNS :: TypeListTag xss (Constructs a) -> a -> NS (NP I) xss 
     matchNS TLHead = \x -> Z $ I x :* Nil 
-    matchNS (TLTail tagTail) = S . matchNS tagTail 
+    matchNS (TLTail tagTail) = S . matchNS tagTail
+    
+{-
+wrapLikeFields :: (Generic b, Generic a, Code a ~ Constructs c, TLContains (Code b) c ~ True)
+  => TypeListTag (Code b) c -> a -> b
+wrapLikeFields tag = to . SOP . matchNS tag . stripNS . unSOP . from 
+  where
+    stripNS :: forall yss ys. NS (NP I) yss -> NP I ys
+    stripNS (S nsTail) = stripNS nsTail
+    stripNS (Z np) = np
+    matchNS :: TypeListTag xss c -> NP I xs -> NS (NP I) xss 
+    matchNS TLHead = Z
+    matchNS (TLTail tagTail) = S . matchNS tagTail
+-}
+
+-- for example
+data Example = A1 A | A2 B | A3 Int | A4 Int String deriving (GHCG.Generic)
+instance Generic Example
+
+data A = A Int
+data B = B String
+
+ex1 :: Example
+ex1 = wrapOne TLHead (A 2)
+
+ex2 :: Example
+ex2 = wrapOne (TLTail TLHead) (B "Hello")
+
+ex3 :: Example
+ex3 = wrapOne (TLTail $ TLTail TLHead) 2
+
+{-
+-- This fails.  We need a different function here
+ex4 :: Example
+ex4 = wrapOne (TLTail $ TLTail $ TLTail TLHead) (2,"Hello")
+-}

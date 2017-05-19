@@ -30,6 +30,7 @@ module Generics.SOP.DMapUtilities
     -- * Types
   , TypeListTag (..)
   , makeTypeListTagNP
+  , makeProductOfAllTypeListTags
   
     -- * Conversions
     -- ** 'NP' \<-\> 'DM.DMap'
@@ -54,7 +55,7 @@ module Generics.SOP.DMapUtilities
 
 import           Generics.SOP          (hmap, hcollapse, NS(..), NP(..), SListI(..)
                                        ,SListI2, SList(..), All2, Compose
-                                       ,FieldInfo, ConstructorInfo, K(..), I (I), unI, Code (..)
+                                       ,FieldInfo, ConstructorInfo, K(..), I (I), unI, Code (..), hliftA
                                        , type (-.->)(Fn), (:.:)(Comp), unComp, Proxy(..), SOP (SOP), unSOP)
 import           Generics.SOP.NP       (sequence'_NP)
 import           Generics.SOP.NS       (ap_NS)
@@ -69,6 +70,7 @@ import           Data.GADT.Compare     ((:~:) (..), GCompare (..), GEq (..),
                                         GOrdering (..))
 import qualified Data.Type.Bool as B
 import qualified Data.Type.Equality as B
+import           Data.Proxy (Proxy (..))
 
 import Data.Functor.Identity           (Identity(Identity,runIdentity))
 
@@ -193,54 +195,79 @@ npSequenceViaDMap sequenceDMap =
 
 --
 
-type family TLContains (xs :: [k]) (x :: k) :: Bool where
-  TLContains '[] _ = False
-  TLContains (y ': ys) x = (x B.== y) B.|| TLContains ys x
+type family TypeListContains (xs :: [k]) (x :: k) :: Bool where
+  TypeListContains '[] _ = False
+  TypeListContains (y ': ys) x = (x B.== y) B.|| TypeListContains ys x
 
-type family Constructs (a :: k) :: [k] where
-  Constructs a = a ': '[]
+type family TypeListConstructs (a :: k) :: [k] where
+  TypeListConstructs a = a ': '[]
+
+-- | make the product of all tags for b and then put them into a type, a, isomorphic to that product. Probably a tuple.
+makeProductOfAllTypeListTags :: forall a b. ( Generic b
+                                            , Generic a
+                                            , (Code a) ~ TypeListConstructs (FunctorWrapTypeList (TypeListTag (Code b)) (Code b))
+                                            ) => Proxy b -> a
+makeProductOfAllTypeListTags _ =
+  let tags :: NP (TypeListTag (Code b)) (Code b)
+      tags = makeTypeListTagNP
+  in to . SOP . Z $ npUnCompose $ hliftA (Comp . I) tags
+
+
 
 -- this compiles without the TLContains constraint but that seems bad.  Unless:
 -- does TypeListTag (Code b) (Constructs a) only exist if TLContains (Code b) (Constructs a) ~ True ??
-wrapOne :: (Generic b, TLContains (Code b) (Constructs a) ~ True)
-  => TypeListTag (Code b) (Constructs a) -> a -> b
+wrapOne :: ( Generic b
+           , TypeListContains (Code b) (TypeListConstructs a) ~ True
+           ) => TypeListTag (Code b) (TypeListConstructs a) -> a -> b
 wrapOne tag = to . SOP . matchNS tag  
   where
-    matchNS :: TypeListTag xss (Constructs a) -> a -> NS (NP I) xss 
+    matchNS :: TypeListTag xss (TypeListConstructs a) -> a -> NS (NP I) xss 
     matchNS TLHead = \x -> Z $ I x :* Nil 
     matchNS (TLTail tagTail) = S . matchNS tagTail
-    
-{-
-wrapLikeFields :: (Generic b, Generic a, Code a ~ Constructs c, TLContains (Code b) c ~ True)
-  => TypeListTag (Code b) c -> a -> b
+
+wrapLikeFields :: ( Generic b
+                  , Generic a
+                  , Code a ~ TypeListConstructs c
+                  , TypeListContains (Code b) c ~ True
+                  )=> TypeListTag (Code b) c -> a -> b
 wrapLikeFields tag = to . SOP . matchNS tag . stripNS . unSOP . from 
   where
-    stripNS :: forall yss ys. NS (NP I) yss -> NP I ys
-    stripNS (S nsTail) = stripNS nsTail
+    stripNS :: NS (NP I) (ys ': yss) -> NP I ys
     stripNS (Z np) = np
-    matchNS :: TypeListTag xss c -> NP I xs -> NS (NP I) xss 
+    stripNS _ = error "Impossible case in wrapLikeFields!"
+    matchNS :: TypeListTag xss xs -> NP I xs -> NS (NP I) xss 
     matchNS TLHead = Z
     matchNS (TLTail tagTail) = S . matchNS tagTail
--}
+
 
 -- for example
 data Example = A1 A | A2 B | A3 Int | A4 Int String deriving (GHCG.Generic)
 instance Generic Example
 
+(a1Tag, a2Tag, a3Tag, a4Tag) = makeProductOfAllTypeListTags (Proxy :: Proxy Example)
+
 data A = A Int
 data B = B String
 
 ex1 :: Example
-ex1 = wrapOne TLHead (A 2)
+ex1 = wrapOne a1Tag (A 2)
 
 ex2 :: Example
-ex2 = wrapOne (TLTail TLHead) (B "Hello")
+ex2 = wrapOne a2Tag (B "Hello")
 
 ex3 :: Example
-ex3 = wrapOne (TLTail $ TLTail TLHead) 2
+ex3 = wrapOne a3Tag 2
+
+ex4 :: Example
+ex4 = wrapLikeFields a4Tag (2,"Hello")
+
 
 {-
--- This fails.  We need a different function here
+-- This fails.  We need a different function here.  See above.
 ex4 :: Example
 ex4 = wrapOne (TLTail $ TLTail $ TLTail TLHead) (2,"Hello")
+
+but...
 -}
+
+

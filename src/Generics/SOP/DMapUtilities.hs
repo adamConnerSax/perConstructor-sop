@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-|
 Module           : Generics.SOP.DMapUtilities
 Description      : Utilities for converting between the NS/NP types of generics-sop and Dependent Maps.
@@ -49,10 +50,10 @@ module Generics.SOP.DMapUtilities
   , functorWrappedSListIsSList
   )where
 
-import           Generics.SOP          (hmap,hcollapse,NS(..),NP(..),SListI(..)
-                                       ,SListI2,SList(..),All2,Compose
-                                       ,FieldInfo,ConstructorInfo,K(..)
-                                       , type (-.->)(Fn), (:.:)(Comp), unComp,Proxy(..))
+import           Generics.SOP          (hmap, hcollapse, NS(..), NP(..), SListI(..)
+                                       ,SListI2, SList(..), All2, Compose
+                                       ,FieldInfo, ConstructorInfo, K(..), I (I), Code (..)
+                                       , type (-.->)(Fn), (:.:)(Comp), unComp, Proxy(..), SOP (SOP))
 import           Generics.SOP.NP       (sequence'_NP)
 import           Generics.SOP.NS       (ap_NS)
 import           Generics.SOP.Dict     (Dict(Dict),withDict)
@@ -64,7 +65,8 @@ import qualified Data.Dependent.Sum as DS
 
 import           Data.GADT.Compare     ((:~:) (..), GCompare (..), GEq (..),
                                         GOrdering (..))
-
+import qualified Data.Type.Bool as B
+import qualified Data.Type.Equality as B
 
 import Data.Functor.Identity           (Identity(Identity,runIdentity))
 
@@ -190,3 +192,20 @@ npSequenceViaDMap sequenceDMap =
 -- NB: THe (\Just x -> x) in there is safe!
 -- dMapToNP has to return Maybe NP since the DMap could be incomplete.
 -- But since we built this DMap from an NP, we know it's complete and dMapToNp will return a Just.  
+
+--
+
+type family TLContains (xs :: [k]) (x :: k) :: Bool where
+  TLContains '[] _ = False
+  TLContains (y ': ys) x = (x B.== y) B.|| TLContains ys x
+
+type family Constructs (a :: k) :: [k] where
+  Constructs a = a ': '[]
+
+wrapOne :: (Generic b, TLContains (Code b) (Constructs a) ~ True)
+  => TypeListTag (Code b) (Constructs a) -> a -> b
+wrapOne tag = to . SOP . matchNS tag  
+  where
+    matchNS :: TypeListTag xss (Constructs a) -> a -> NS (NP I) xss 
+    matchNS TLHead = \x -> Z $ I x :* Nil 
+    matchNS (TLTail tagTail) = S . matchNS tagTail 

@@ -1,13 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE PolyKinds                  #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
 module Generics.SOP.Distribute
   (
     expand
@@ -28,8 +28,8 @@ module Generics.SOP.Distribute
   , Dict
   ) where
 
-import           Generics.SOP hiding (Compose)
-import           Generics.SOP.Dict (Dict,withDict)
+import           Generics.SOP      hiding (Compose)
+import           Generics.SOP.Dict (Dict, withDict)
 
 expand::forall (f :: [k] -> *) xs.(SListI xs)=>NS f xs -> NP (Maybe :.: f) xs
 expand ns = go sList (Just ns) where
@@ -100,4 +100,4 @@ functionPOPFromClass' fn =
   in  withDict dict $ hcpure (Proxy :: Proxy c) $ Fn fn
 -}
 
-  
+

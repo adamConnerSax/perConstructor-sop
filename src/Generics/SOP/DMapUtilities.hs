@@ -26,6 +26,8 @@ module Generics.SOP.DMapUtilities
     -- * Type Functions
     FunctorWrapTypeList
   , FunctorWrapTypeListOfLists
+  , TypeListContains
+  , TypeListConstructs
   
     -- * Types
   , TypeListTag (..)
@@ -214,7 +216,7 @@ makeProductOfAllTypeListTags _ =
 
 
 
--- this compiles without the TLContains constraint but that seems bad.  Unless:
+-- this compiles without the TypeListContains constraint but that seems bad.  Unless:
 -- does TypeListTag (Code b) (Constructs a) only exist if TLContains (Code b) (Constructs a) ~ True ??
 wrapOne :: ( Generic b
            , TypeListContains (Code b) (TypeListConstructs a) ~ True

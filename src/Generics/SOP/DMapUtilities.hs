@@ -44,8 +44,10 @@ module Generics.SOP.DMapUtilities
   
   -- * Functor wrapping/unwrapping utilities for 'NP' 
   , npUnCompose
+  , nsUnCompose
   , nsOfnpUnCompose
   , npReCompose
+  , nsReCompose
   , nsOfnpReCompose
   
   -- * Utilities
@@ -121,6 +123,23 @@ dSumToNS (tag :=> fa) = go tag fa where
   go TLHead fy = Z fy
   go (TLTail tag') fy = S (go tag' fy)
 
+toPerConstructorDSum :: Generic a => a -> DS.DSum (TypeListTag (Code a)) (NP I)
+toPerConstructorDSum = nsToDSum . unSOP . from
+
+fromPerConstructorDSum :: Generic a => DS.DSum (TypeListTag (Code a)) (NP I) -> a
+fromPerConstructorDSum = to . SOP . dSumToNS
+
+toPerConstructorIdentityDSum :: forall a. Generic a => a -> DS.DSum (TypeListTag (FunctorWrapTypeList (NP I) (Code a))) Identity
+toPerConstructorIdentityDSum =
+  withDict (functorWrappedSListIsSList (Proxy :: Proxy (NP I)) (sList :: SList (Code a))) $
+  nsToDSum . nsUnCompose . hmap (Comp . Identity) . unSOP . from
+
+fromPerConstructorIdentityDSum :: forall a. Generic a => DS.DSum (TypeListTag (FunctorWrapTypeList (NP I) (Code a))) Identity -> a
+fromPerConstructorIdentityDSum =
+  withDict (functorWrappedSListIsSList (Proxy :: Proxy (NP I)) (sList :: SList (Code a))) $
+  to . SOP . hmap (runIdentity . unComp) . nsReCompose . dSumToNS
+
+
 -- | Make an NP of TypeListTag xs for a typelist xs. 
 makeTypeListTagNP::SListI xs=>NP (TypeListTag xs) xs
 makeTypeListTagNP = go sList where
@@ -147,6 +166,14 @@ npUnCompose np = go np where
   go Nil = Nil
   go (fgx :* np') = unComp fgx :* go np'
 
+nsUnCompose :: forall f g (xs :: [k]). SListI xs => NS (f :.: g) xs -> NS f (FunctorWrapTypeList g xs)
+nsUnCompose = go sList where
+  go :: forall ys. SListI ys => SList ys -> NS (f :.: g) ys -> NS f (FunctorWrapTypeList g ys)
+  go SNil _ = error "An NS cannot be empty"
+  go SCons (Z fgx) = Z $ unComp fgx
+  go SCons (S ns') = S $ go sList ns'
+
+  
 nsOfnpUnCompose :: forall f g xss. (SListI xss, SListI2 xss)=>NS (NP (f :.: g)) xss -> NS (NP f) (FunctorWrapTypeListOfLists g xss)
 nsOfnpUnCompose = go sList where
   go::forall yss. (SListI yss, SListI2 yss) => SList yss -> NS (NP (f :.: g)) yss -> NS (NP f) (FunctorWrapTypeListOfLists g yss)
@@ -159,9 +186,17 @@ nsOfnpUnCompose = go sList where
 -- to types representing composition of the functors.
 npReCompose :: forall f g (xs :: [k]). SListI xs=>NP f (FunctorWrapTypeList g xs) -> NP (f :.: g) xs -- (RemoveFunctor g (AddFunctor g xs))
 npReCompose = go sList where
-  go::forall ys.SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
+  go :: forall ys. SListI ys=>SList ys ->  NP f (FunctorWrapTypeList g ys) -> NP (f :.: g) ys
   go SNil Nil = Nil
   go SCons (fgx :* np') = Comp fgx :* go sList np'
+
+nsReCompose :: forall f g (xs :: [k]). SListI xs => NS f (FunctorWrapTypeList g xs) -> NS (f :.: g) xs
+nsReCompose = go sList
+  where
+    go :: forall ys. SListI ys => SList ys -> NS f (FunctorWrapTypeList g ys) -> NS (f :.: g) ys
+    go SNil _ = error "NS can't be empty (in nsReCompose)."
+    go SCons (Z fgx) = Z $ Comp fgx
+    go SCons (S ns') = S $ go sList ns'
 
 -- | ReCompose all the 'NP's in an "NS (NP f) xss".
 nsOfnpReCompose :: forall f g xss. (SListI xss, SListI2 xss)=>NS (NP f) (FunctorWrapTypeListOfLists g xss) -> NS (NP (f :.: g)) xss

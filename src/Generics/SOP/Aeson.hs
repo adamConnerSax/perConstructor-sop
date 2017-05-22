@@ -103,7 +103,6 @@ instance (All2 FromJSON xss, SListI2 xss, yss ~ (FunctorWrapTypeList (NP I) xss)
   parseJSON =
     withDict (functorWrappedSListIsSList (Proxy :: Proxy (NP I)) (sList :: SList xss)) $
     fmap (nsToDSum . nsUnCompose . hmap (Comp. Identity) . unSOP) . parseJSON
-
 -}
 
 -- NB: This can fail if the index is >= length of the type-list, hence the Maybe return type

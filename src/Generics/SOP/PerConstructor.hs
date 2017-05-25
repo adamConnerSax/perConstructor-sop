@@ -10,7 +10,8 @@
 {-# LANGUAGE TypeOperators         #-}
 module Generics.SOP.PerConstructor
   (
-    MapFieldsAndSequence
+    selectUnary
+  , MapFieldsAndSequence
   , mapFieldsAndSequence
   , mapFieldsFromConstraintAndCustomSequence
   , mapFieldsFromConstraintAndSequence
@@ -56,15 +57,8 @@ import           Generics.SOP.DMapUtilities (TypeListConstructs, TypeListTag,
 import           Control.Arrow              (first, (&&&))
 import           Data.Proxy                 (Proxy (Proxy))
 
-
-
-
 selectUnary :: (Generic a, Generic b, Code b ~ TypeListConstructs xb) => TypeListTag (Code a) xb -> a -> Maybe b
 selectUnary tag = flip selectTypedFromNP tag . expandA
-
-
-
-
 
 type MapFieldsAndSequence f h xss = POP f xss -> NP (h :.: NP I) xss
 

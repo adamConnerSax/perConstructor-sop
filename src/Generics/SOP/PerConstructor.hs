@@ -1,13 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE PolyKinds                  #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
 module Generics.SOP.PerConstructor
   (
     MapFieldsAndSequence
@@ -22,7 +22,7 @@ module Generics.SOP.PerConstructor
   , functorDoPerConstructor
   , functorDoPerConstructor'
   , functorDoPerConstructorWithNames
-  , functorDoPerConstructorWithNames'  
+  , functorDoPerConstructorWithNames'
   , toPerConstructorNP
   , toPerConstructorList
   , toPerConstructorList'
@@ -47,13 +47,23 @@ module Generics.SOP.PerConstructor
   , Dict(..)
   ) where
 
+import           Generics.SOP               hiding (Compose)
+import           Generics.SOP.Dict          (Dict (..), pureAll2)
 import           Generics.SOP.Distribute
+import           Generics.SOP.DMapUtilities (TypeListConstructs, TypeListTag,
+                                             selectTypedFromNP)
 
-import           Generics.SOP hiding (Compose)
-import           Generics.SOP.Dict   (Dict(..),pureAll2)
+import           Control.Arrow              (first, (&&&))
+import           Data.Proxy                 (Proxy (Proxy))
 
-import           Control.Arrow (first, (&&&))
-import           Data.Proxy (Proxy(Proxy))
+
+
+
+selectUnary :: (Generic a, Generic b, Code b ~ TypeListConstructs xb) => TypeListTag (Code a) xb -> a -> Maybe b
+selectUnary tag = flip selectTypedFromNP tag . expandA
+
+
+
 
 
 type MapFieldsAndSequence f h xss = POP f xss -> NP (h :.: NP I) xss
@@ -83,12 +93,12 @@ mapFieldsFromConstraintAndCustomSequence::forall c f h xss.SListI2 xss
   ->(forall a.c a=>f a -> h a) -- function for the field mappings
   ->(forall xs.SListI xs=>NP h xs -> h (NP I xs)) -- sequencing function
   ->MapFieldsAndSequence f h xss
-mapFieldsFromConstraintAndCustomSequence dict fn sequence = 
+mapFieldsFromConstraintAndCustomSequence dict fn sequence =
   let sListIC = Proxy :: Proxy SListI
   in hcliftA sListIC (Comp . sequence) . unPOP . mapFieldsFromConstraint dict fn
 
 mapFieldsFromConstraint::forall c f h xss.SListI2 xss=>Dict (All2 c) xss -> (forall a.c a=>f a -> h a) -> POP f xss -> POP h xss
-mapFieldsFromConstraint d fn = hap (functionPOPFromClass d fn) 
+mapFieldsFromConstraint d fn = hap (functionPOPFromClass d fn)
 
 
 {-
@@ -121,7 +131,7 @@ functorToPerConstructorList' transform ga =
 functorDoPerConstructor::(Generic a, Functor g, Applicative h)=>MapFieldsAndSequence (g :.: Maybe) h (Code a)->g a->[h a]  -- one per constructor
 functorDoPerConstructor mapFsAndS = functorToPerConstructorList (mapFsAndS . distributeToFields)
 
-functorDoPerConstructor'::(Generic a, Functor g, Applicative h)=>MapFieldsAndSequence (g :.: Maybe) h (Code a)->g a->[(g (Maybe a), h a)]  
+functorDoPerConstructor'::(Generic a, Functor g, Applicative h)=>MapFieldsAndSequence (g :.: Maybe) h (Code a)->g a->[(g (Maybe a), h a)]
 functorDoPerConstructor' mapFsAndS = functorToPerConstructorList' (mapFsAndS . distributeToFields)
 
 functorDoPerConstructorWithNames::forall a g h.(Generic a, HasDatatypeInfo a, Functor g, Applicative h)
@@ -175,19 +185,19 @@ npConInfo::forall a.(Generic a, HasDatatypeInfo a)=>Proxy a->NP ConstructorInfo 
 npConInfo = constructorInfo . datatypeInfo
 
 constructorNameList::forall a.(Generic a, HasDatatypeInfo a)=>Proxy a->[ConstructorName]
-constructorNameList = hcollapse . hliftA (K . constructorName) . npConInfo 
+constructorNameList = hcollapse . hliftA (K . constructorName) . npConInfo
 
 getFieldNames::SListI xs=>ConstructorInfo xs -> NP (K (Maybe FieldName)) xs
 getFieldNames ci = case ci of
                      Record _ npfi -> hmap (\(FieldInfo name) -> K (Just name)) npfi
                      _             -> hpure (K Nothing)
 
-maybeFieldNamePOP::(Generic a, HasDatatypeInfo a)=>Proxy a->POP (K (Maybe FieldName)) (Code a)  
+maybeFieldNamePOP::(Generic a, HasDatatypeInfo a)=>Proxy a->POP (K (Maybe FieldName)) (Code a)
 maybeFieldNamePOP proxy =
   let sListIC = Proxy :: Proxy SListI
   in POP $ hcliftA sListIC getFieldNames (npConInfo proxy) -- POP (K (Maybe FieldName)) (Code a)
 
-constructorData::(Generic a, HasDatatypeInfo a)=>Proxy a -> ([ConstructorName],POP (K (Maybe FieldName)) (Code a))                        
+constructorData::(Generic a, HasDatatypeInfo a)=>Proxy a -> ([ConstructorName],POP (K (Maybe FieldName)) (Code a))
 constructorData proxy =
   let npci = npConInfo proxy
       sListIC = Proxy :: Proxy SListI

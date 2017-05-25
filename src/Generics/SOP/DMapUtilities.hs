@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 {-# LANGUAGE DeriveGeneric #-}
 {-|
@@ -29,7 +30,7 @@ module Generics.SOP.DMapUtilities
   , TypeListContains
   , TypeListConstructs
   
-    -- * Types
+    -- * Tags
   , TypeListTag (..)
   , makeTypeListTagNP
   , makeProductOfAllTypeListTags
@@ -52,6 +53,7 @@ module Generics.SOP.DMapUtilities
   
   -- * Utilities
   , npSequenceViaDMap
+  , selectTypedFromNP
   
   -- * Proofs
   , functorWrappedSListIsSList
@@ -239,6 +241,18 @@ type family TypeListContains (xs :: [k]) (x :: k) :: Bool where
 type family TypeListConstructs (a :: k) :: [k] where
   TypeListConstructs a = a ': '[]
 
+selectTypedFromNP :: (Functor g, Generic a, Code a ~ TypeListConstructs xs, SListI xs, SListI2 xss) => NP (g :.: NP I) xss -> TypeListTag xss xs -> g a
+selectTypedFromNP np tag = to . SOP . Z <$> selectFromNP np tag
+
+selectFromNP :: forall g xss xs. (Functor g, SListI2 xss, SListI xs) => NP (g :.: NP I) xss -> TypeListTag xss xs -> g (NP I xs)
+selectFromNP np tag = go np tag
+  where
+    go :: NP (g :.: NP I) yss -> TypeListTag yss ys -> g (NP I ys)
+    go Nil _ = error "Reached the end of typelist before the tag was satified."
+    go (gy :* _) TLHead = unComp gy
+    go (_ :* npTail) (TLTail tailTag) = go npTail tailTag
+
+
 -- | make the product of all tags for b and then put them into a type, a, isomorphic to that product. Probably a tuple.
 makeProductOfAllTypeListTags :: forall a b. ( Generic b
                                             , Generic a
@@ -259,8 +273,8 @@ wrapOne :: ( Generic b
 wrapOne tag = to . SOP . matchNS tag  
   where
     matchNS :: TypeListTag xss (TypeListConstructs a) -> a -> NS (NP I) xss 
-    matchNS TLHead = \x -> Z $ I x :* Nil 
-    matchNS (TLTail tagTail) = S . matchNS tagTail
+    matchNS TLHead x = Z $ I x :* Nil 
+    matchNS (TLTail tagTail) x = S $ matchNS tagTail x
 
 wrapLikeFields :: ( Generic b
                   , Generic a
@@ -306,5 +320,10 @@ ex4 = wrapOne (TLTail $ TLTail $ TLTail TLHead) (2,"Hello")
 
 but...
 -}
+
+
+--
+
+
 
 

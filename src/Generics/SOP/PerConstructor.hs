@@ -109,7 +109,7 @@ This is the heart of it.  Take a functorial value (Functor g=>g a) and a (possib
 -}
 type TransformEach g h xss = NP ((g :.: Maybe) :.: NP I) xss -> NP (h :.: NP I) xss
 
-functorToPerConstructorNP :: (Generic a, Functor g, Functor h) => TransformEach g h (Code a)->g a->NP (K (h a)) (Code a)
+functorToPerConstructorNP :: (Generic a, Functor g, Functor h) => TransformEach g h (Code a) -> g a -> NP (K (h a)) (Code a)
 functorToPerConstructorNP transform = reconstructA . transform . reAssociateNP . functorToNP
 
 functorToPerConstructorList :: (Generic a, Functor g, Functor h) => TransformEach g h (Code a) -> g a -> [h a]  -- one per constructor

@@ -10,7 +10,8 @@
 {-# LANGUAGE TypeOperators         #-}
 module Generics.SOP.PerConstructor
   (
-    MapFieldsAndSequence
+    selectUnary
+  , MapFieldsAndSequence
   , mapFieldsAndSequence
   , mapFieldsFromConstraintAndCustomSequence
   , mapFieldsFromConstraintAndSequence

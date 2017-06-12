@@ -54,6 +54,8 @@ module Generics.SOP.DMapUtilities
   -- * Utilities
   , npSequenceViaDMap
   , selectTypedFromNP
+  , wrapOne
+  , wrapLikeFields
   
   -- * Proofs
   , functorWrappedSListIsSList
